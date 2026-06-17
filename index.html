@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time band - 밴드 합주 일정 조율</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .time-block.blocked { background-color: #ef4444; color: white; }
+        .time-block.available { background-color: #f3f4f6; }
+        .time-block.available:hover { background-color: #e5e7eb; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
+
+    <header class="bg-indigo-600 text-white shadow-md py-4 px-6 flex justify-between items-center">
+        <h1 class="text-2xl font-bold tracking-wider"><i class="fa-solid fa-drum"></i> Time band</h1>
+        <span class="text-sm bg-indigo-700 px-3 py-1 rounded-full text-indigo-200">역발상 일정 조율</span>
+    </header>
+
+    <main class="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+
+        <section id="step-create-room" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 class="text-xl font-bold mb-4 text-indigo-600"><i class="fa-solid fa-circle-plus"></i> 새로운 합주 조율 방 만들기</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">합주 곡 제목 / 프로젝트명</label>
+                    <input type="text" id="room-title" placeholder="예: 7월 정기공연 첫 합주 (지킬앤하이드)" class="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">수합 시작 날짜</label>
+                        <input type="date" id="start-date" class="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">수합 종료 날짜 (최대 5일 권장)</label>
+                        <input type="date" id="end-date" class="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">필수 참여 포지션 (중복 선택 가능)</label>
+                    <div class="flex flex-wrap gap-2 mt-1">
+                        <label class="flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-xl cursor-pointer"><input type="checkbox" name="req-pos" value="보컬" class="rounded"> <span>🎤 보컬</span></label>
+                        <label class="flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-xl cursor-pointer"><input type="checkbox" name="req-pos" value="기타" class="rounded"> <span>🎸 기타</span></label>
+                        <label class="flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-xl cursor-pointer"><input type="checkbox" name="req-pos" value="베이스" class="rounded"> <span>🎸 베이스</span></label>
+                        <label class="flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-xl cursor-pointer"><input type="checkbox" name="req-pos" value="드럼" class="rounded"> <span>🥁 드럼</span></label>
+                        <label class="flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-xl cursor-pointer"><input type="checkbox" name="req-pos" value="키보드" class="rounded"> <span>🎹 키보드</span></label>
+                    </div>
+                </div>
+                <button onclick="createRoom()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition">방 생성하고 시작하기</button>
+            </div>
+        </section>
+
+        <section id="step-dashboard" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            <div class="border-b pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div>
+                    <h2 id="view-room-title" class="text-2xl font-bold text-slate-900">방 제목</h2>
+                    <p id="view-room-period" class="text-sm text-slate-500">기간: </p>
+                </div>
+                <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-xl w-full md:w-auto">
+                    <p class="text-xs text-indigo-700 font-bold"><i class="fa-solid fa-link"></i> 멤버 초대 링크</p>
+                    <div class="flex gap-2 mt-1">
+                        <input type="text" id="share-url" readonly class="text-xs p-2 bg-white border rounded w-full md:w-80 font-mono text-slate-600">
+                        <button onclick="copyShareUrl()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1 rounded font-bold transition">복사</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-users"></i> 실시간 멤버 일정 입력 현황</h3>
+                <div id="member-status-list" class="flex flex-wrap gap-2">
+                    </div>
+            </div>
+
+            <hr>
+
+            <div id="user-auth-zone" class="space-y-4">
+                <h3 class="text-md font-bold text-slate-900"><i class="fa-solid fa-user-tag"></i> 내 일정 입력하기</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="user-name" placeholder="이름을 입력하세요" class="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                    <select id="user-position" class="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">포지션 선택</option>
+                        <option value="보컬">🎤 보컬</option>
+                        <option value="기타">🎸 기타</option>
+                        <option value="베이스">🎸 베이스</option>
+                        <option value="드럼">🥁 드럼</option>
+                        <option value="키보드">🎹 키보드</option>
+                    </select>
+                    <button onclick="startScheduleInput()" class="bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition">일정 입력 캘린더 열기</button>
+                </div>
+            </div>
+
+            <div id="schedule-input-zone" class="hidden border p-4 rounded-xl bg-slate-50 space-y-4">
+                <div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
+                    <i class="fa-solid fa-circle-info"></i> <strong>차별화된 입력 방식:</strong> 가능한 시간이 아니라, 정기 직장/학업/알바 등 <strong>내가 합주할 수 없는 불가능한 시간대만 클릭(또는 드래그)하여 빨간색으로 채워주세요!</strong> 그 외 시간은 모두 가능으로 계산됩니다.
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <div id="timetable-container" class="min-w-[600px] bg-white border rounded-lg">
+                        </div>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button onclick="saveUserSchedule()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2 rounded-xl transition">내 불가능한 시간 제출 완료</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="step-results" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-emerald-600"><i class="fa-solid fa-wand-magic-sparkles"></i> Time band 분석 결과</h2>
+                <button onclick="calculateBestTime()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition"><i class="fa-solid fa-calculator"></i> 공통 시간대 계산하기</button>
+            </div>
+            <p class="text-xs text-slate-500">※ 모든 멤버들이 입력한 정보를 기반으로 자동으로 겹치는 공통 시간을 추출하며, 만족하지 못할 경우 필수 포지션을 우대한 차선책을 글자 형식으로 출력합니다.</p>
+            
+            <div id="result-box" class="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-sm space-y-2 whitespace-pre-line leading-relaxed">
+                결과 계산하기 버튼을 누르면 텍스트 형태의 최적 스케줄 보고서가 이곳에 도출됩니다.
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="text-center py-8 text-xs text-slate-400">
+        &copy; 2026 Time band. Designed for Band Musicians Room Coordinator.
+    </footer>
+
+    <script>
+        let roomConfig = {
+            title: "",
+            startDate: "",
+            endDate: "",
+            requiredPositions: [],
+            dates: [] 
+        };
+        let members = []; 
+
+        const timeSlots = []; 
+        for(let h=9; h<=23; h++) {
+            timeSlots.push(`${String(h).padStart(2,'0')}:00`);
+            timeSlots.push(`${String(h).padStart(2,'0')}:30`);
+        }
+
+        let currentInputBlocks = new Set(); 
+        let isMouseDown = false;
+
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomId = urlParams.get('room');
+            
+            if(roomId) {
+                roomConfig.title = "공유받은 합주 프로젝트 Room #" + roomId;
+                
+                let today = new Date();
+                let future = new Date();
+                future.setDate(today.getDate() + 3);
+                
+                roomConfig.startDate = today.toISOString().split('T')[0];
+                roomConfig.endDate = future.toISOString().split('T')[0];
+                roomConfig.requiredPositions = ["보컬", "기타", "드럼"]; 
+
+                let current = new Date(roomConfig.startDate);
+                const stopDate = new Date(roomConfig.endDate);
+                while (current <= stopDate) {
+                    roomConfig.dates.push(current.toISOString().split('T')[0]);
+                    current.setDate(current.getDate() + 1);
+                }
+
+                document.getElementById('view-room-title').innerText = `🎵 ${roomConfig.title}`;
+                document.getElementById('view-room-period').innerText = `🕒 조율 기간: ${roomConfig.startDate} ~ ${roomConfig.endDate} (링크 참여 모드)`;
+                document.getElementById('share-url').value = window.location.href;
+
+                document.getElementById('step-create-room').classList.add('hidden');
+                document.getElementById('step-dashboard').classList.remove('hidden');
+                document.getElementById('step-results').classList.remove('hidden');
+
+                initMockMembers();
+                renderStatus();
+                
+                alert("🎸 Time band 공유방에 연결되었습니다!\n이름과 포지션을 입력해 내 일정을 추가해 주세요.");
+            }
+        };
+
+        // 1. 방 생성
+        function createRoom() {
+            const titleInput = document.getElementById('room-title');
+            const startInput = document.getElementById('start-date');
+            const endInput = document.getElementById('end-date');
+
+            const title = titleInput ? titleInput.value.trim() : "";
+            const start = startInput ? startInput.value : "";
+            const end = endInput ? endInput.value : "";
+            
+            const checkedBoxes = document.querySelectorAll('input[name="req-pos"]:checked');
+            let reqPos = Array.from(checkedBoxes).map(cb => cb.value);
+
+            if(!title) {
+                alert("합주 곡 제목을 입력해 주세요.");
+                return;
+            }
+            if(!start || !end) {
+                alert("수합 시작 날짜와 종료 날짜를 모두 선택해 주세요.");
+                return;
+            }
+            if(new Date(start) > new Date(end)) {
+                alert("시작 날짜는 종료 날짜보다 빠를 수 없습니다.");
+                return;
+            }
+
+            roomConfig.title = title;
+            roomConfig.startDate = start;
+            roomConfig.endDate = end;
+            roomConfig.requiredPositions = reqPos;
+
+            roomConfig.dates = [];
+            let current = new Date(start);
+            const stopDate = new Date(end);
+            while (current <= stopDate) {
+                roomConfig.dates.push(current.toISOString().split('T')[0]);
+                current.setDate(current.getDate() + 1);
+            }
+
+            document.getElementById('view-room-title').innerText = `🎵 ${title}`;
+            document.getElementById('view-room-period').innerText = `🕒 조율 기간: ${start} ~ ${end} (필수 포지션: ${reqPos.join(', ') || '없음'})`;
+            
+            const currentUrl = window.location.href.split('#')[0].split('?')[0];
+            const roomId = Math.floor(Math.random() * 100000);
+            document.getElementById('share-url').value = `${currentUrl}?room=${roomId}`;
+
+            document.getElementById('step-create-room').classList.add('hidden');
+            document.getElementById('step-dashboard').classList.remove('hidden');
+            document.getElementById('step-results').classList.remove('hidden');
+
+            initMockMembers();
+            renderStatus();
+        }
+
+        function copyShareUrl() {
+            const shareUrlInput = document.getElementById('share-url');
+            shareUrlInput.select();
+            shareUrlInput.setSelectionRange(0, 99999); 
+            
+            try {
+                navigator.clipboard.writeText(shareUrlInput.value);
+                alert('초대 링크가 클립보드에 복사되었습니다! 팀원들에게 공유해보세요.');
+            } catch (err) {
+                alert('링크를 복사해주세요: ' + shareUrlInput.value);
+            }
+        }
+
+        // 초기 멤버 생성 단계: 무조건 처음엔 '대기' 상태로 세팅
+        function initMockMembers() {
+            const allPos = ["보컬", "기타", "베이스", "드럼", "키보드"];
+            members = [];
+            allPos.forEach((pos, idx) => {
+                if(roomConfig.requiredPositions.includes(pos) || idx < 4) { // 기본 4개 포지션 표출
+                    members.push({
+                        name: `멤버${idx+1}`,
+                        position: pos,
+                        status: "대기", // 초기값 대기
+                        blockedTimes: []
+                    });
+                }
+            });
+        }
+
+        function renderStatus() {
+            const container = document.getElementById('member-status-list');
+            container.innerHTML = "";
+            members.forEach(m => {
+                const isDone = m.status === "완료";
+                const badgeClass = isDone ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-amber-100 text-amber-800 border-amber-300";
+                const icon = isDone ? "fa-circle-check" : "fa-clock";
+                
+                const div = document.createElement('div');
+                div.className = `border px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 ${badgeClass}`;
+                div.innerHTML = `<span>[${m.position}] ${m.name}</span> <i class="fa-solid ${icon}"></i> <span class="text-[10px] opacity-80">${m.status}</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        function startScheduleInput() {
+            const name = document.getElementById('user-name').value.trim();
+            const pos = document.getElementById('user-position').value;
+
+            if(!name || !pos) {
+                alert("이름과 담당 포지션을 선택해주세요.");
+                return;
+            }
+
+            currentInputBlocks.clear();
+            document.getElementById('schedule-input-zone').classList.remove('hidden');
+            renderTimetable();
+        }
+
+        function renderTimetable() {
+            const container = document.getElementById('timetable-container');
+            container.innerHTML = "";
+
+            const headerRow = document.createElement('div');
+            headerRow.className = "grid grid-cols-[80px_repeat(" + roomConfig.dates.length + ",1fr)] border-b text-center text-xs font-bold bg-slate-100 py-2";
+            
+            const timeLabel = document.createElement('div');
+            timeLabel.innerText = "시간";
+            headerRow.appendChild(timeLabel);
+
+            const weekDays = ['일','월','화','수','목','금','토'];
+            roomConfig.dates.forEach(d => {
+                const div = document.createElement('div');
+                const dayNum = new Date(d).getDay();
+                div.innerText = `${d.substring(5)} (${weekDays[dayNum]})`;
+                headerRow.appendChild(div);
+            });
+            container.appendChild(headerRow);
+
+            timeSlots.forEach(slot => {
+                const row = document.createElement('div');
+                row.className = "grid grid-cols-[80px_repeat(" + roomConfig.dates.length + ",1fr)] text-center text-xs border-b last:border-0";
+                
+                const label = document.createElement('div');
+                label.className = "bg-slate-50 border-r py-1 text-slate-500 font-mono text-[11px] flex items-center justify-center";
+                label.innerText = slot;
+                row.appendChild(label);
+
+                roomConfig.dates.forEach(date => {
+                    const cell = document.createElement('div');
+                    const timestamp = `${date} ${slot}`;
+                    cell.className = "time-block available border-r last:border-0 py-1 transition-all cursor-pointer select-none text-[10px] text-transparent";
+                    cell.innerText = "X";
+                    cell.dataset.timestamp = timestamp;
+
+                    cell.addEventListener('mousedown', (e) => {
+                        isMouseDown = true;
+                        toggleBlock(cell, timestamp);
+                    });
+                    cell.addEventListener('mouseenter', () => {
+                        if(isMouseDown) toggleBlock(cell, timestamp);
+                    });
+
+                    row.appendChild(cell);
+                });
+                container.appendChild(row);
+            });
+
+            window.addEventListener('mouseup', () => { isMouseDown = false; });
+        }
+
+        function toggleBlock(element, timestamp) {
+            if(currentInputBlocks.has(timestamp)) {
+                currentInputBlocks.delete(timestamp);
+                element.classList.remove('blocked');
+                element.classList.add('available');
+            } else {
+                currentInputBlocks.add(timestamp);
+                element.classList.remove('available');
+                element.classList.add('blocked');
+            }
+        }
+
+        // ⭐ [버그 수정 핵심부] 일정을 제출했을 때 전체가 다 완료되는 심각한 오류 해결
+        function saveUserSchedule() {
+            const name = document.getElementById('user-name').value.trim();
+            const pos = document.getElementById('user-position').value;
+
+            // 현황판 목록에서 사용자가 선택한 '포지션'에 해당하는 가짜 멤버 객체를 찾아 교체합니다.
+            const targetIdx = members.findIndex(m => m.position === pos);
+
+            const userPayload = {
+                name: name,         // 입력한 실명으로 업데이트
+                position: pos,      // 포지션 유지
+                status: "완료",     // 해당 포지션만 완료 상태 변경!
+                blockedTimes: Array.from(currentInputBlocks) // 불가능한 시간 저장
+            };
+
+            if(targetIdx >= 0) {
+                // 기존 대기 중인 포지션 자리에 데이터 매핑
+                members[targetIdx] = userPayload;
+            } else {
+                // 목록에 없는 새로운 포지션일 경우 추가
+                members.push(userPayload);
+            }
+
+            // ⚠️ 절대 다른 대기 멤버(status: "대기")들을 강제로 "완료"로 바꾸는 오작동 로직을 전부 삭제함.
+            
+            renderStatus(); // 상태 새로고침 (선택한 포지션만 완료 아이콘으로 변경됨)
+            document.getElementById('schedule-input-zone').classList.add('hidden');
+            alert(`${name}님의 불가능한 시간 제출이 완료되었습니다!\n현황판에서 [${pos}] 항목이 완료로 변경되었습니다.`);
+        }
+
+        function calculateBestTime() {
+            const resultBox = document.getElementById('result-box');
+            
+            const completedMembers = members.filter(m => m.status === "완료");
+            if(completedMembers.length === 0) {
+                resultBox.innerText = "일정을 입력하고 제출한 멤버가 아직 없습니다.";
+                return;
+            }
+
+            let finalReport = `========================================\n`;
+            finalReport += `   🎵 Time band 최적 합주 시간 대조 결과 보고서\n`;
+            finalReport += `========================================\n\n`;
+
+            const weekDays = ['일','월','화','수','목','금','토'];
+            let perfectMatches = []; 
+            let backupMatches = [];  
+
+            roomConfig.dates.forEach(date => {
+                const dayNum = new Date(date).getDay();
+                const dateLabel = `${date}(${weekDays[dayNum]})`;
+
+                timeSlots.forEach(slot => {
+                    let fullAvailable = true;
+                    let missingRequired = false;
+                    let missingMembers = []; 
+
+                    completedMembers.forEach(m => {
+                        const isBlocked = m.blockedTimes.includes(`${date} ${slot}`);
+                        if(isBlocked) {
+                            fullAvailable = false;
+                            missingMembers.push(`${m.position}(${m.name})`);
+                            if(roomConfig.requiredPositions.includes(m.position)) {
+                                missingRequired = true; 
+                            }
+                        }
+                    });
+
+                    if(fullAvailable) {
+                        perfectMatches.push({ label: dateLabel, time: slot });
+                    } else if (!missingRequired) {
+                        backupMatches.push({ label: dateLabel, time: slot, missing: missingMembers });
+                    }
+                });
+            });
+
+            function formatResults(matches, isBackup = false) {
+                if(matches.length === 0) return " - 해당 조건에 만족하는 시간대가 존재하지 않습니다.\n";
+                
+                let tempReport = "";
+                let idx = 0;
+                while (idx < matches.length) {
+                    let start = matches[idx];
+                    let endSlot = start.time;
+                    let nextIdx = idx + 1;
+                    
+                    while (nextIdx < matches.length && matches[nextIdx].label === start.label) {
+                        if(isBackup && JSON.stringify(matches[nextIdx].missing) !== JSON.stringify(start.missing)) {
+                            break;
+                        }
+                        
+                        let currMin = parseInt(endSlot.split(':')[0])*60 + parseInt(endSlot.split(':')[1]);
+                        let nextMin = parseInt(matches[nextIdx].time.split(':')[0])*60 + parseInt(matches[nextIdx].time.split(':')[1]);
+                        if(nextMin - currMin > 30) break;
+
+                        endSlot = matches[nextIdx].time;
+                        nextIdx++;
+                    }
+                    
+                    if(isBackup) {
+                        tempReport += ` 📍 [${start.label}] <${start.time} ~ ${endSlot}> 가능합니다. (불참멤버 제외: ${start.missing.join(', ')})\n`;
+                    } else {
+                        tempReport += ` ⭐️ [${start.label}] <${start.time} ~ ${endSlot}> 가능합니다. (전원 참석)\n`;
+                    }
+                    idx = nextIdx;
+                }
+                return tempReport;
+            }
+
+            finalReport += `🥇 [1순위] 전원 공통 가능 시간대\n`;
+            finalReport += formatResults(perfectMatches, false);
+            
+            finalReport += `\n🥈 [2순위] 차선책 (지정 필수 포지션 전원 참석 기준)\n`;
+            finalReport += formatResults(backupMatches, true);
+
+            finalReport += `\n----------------------------------------\n`;
+            finalReport += `※ 이후 판단은 합주 멤버들끼리 의논하여 확정해 주세요.\n`;
+            finalReport += `Time band 프로그램은 객관적인 정보 정리 표기만을 제공합니다.`;
+
+            resultBox.innerText = finalReport;
+        }
+    </script>
+</body>
+</html>
